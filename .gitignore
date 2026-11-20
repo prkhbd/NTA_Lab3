@@ -1,0 +1,8 @@
+.DS_Store
+.vscode/
+build/
+*.o
+*.out
+benchmark_results/
+index_calculus
+index_calculus_parallel

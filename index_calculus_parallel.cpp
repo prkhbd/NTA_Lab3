@@ -533,59 +533,66 @@ int main() {
 
         cout << "\n";
 
+        if (threadCount > (int)thread::hardware_concurrency() && thread::hardware_concurrency() > 0) {
+            threadCount = (int)thread::hardware_concurrency();
+            cout << "Thread count limited to available hardware threads: " << threadCount << "\n";
+        }
+
         int requiredRelations = (int)base.size() + 20;
         long long maxAttempts = 2000000;
-
         vector<Relation> relations;
+        vector<cpp_int> logs;
+        bool solved = false;
 
         auto totalStart = Clock::now();
+        auto relationStart = Clock::now();
+        double relationAccumulated = 0.0;
+        double solvingAccumulated = 0.0;
 
         cout << "\nCollecting relations in parallel...\n";
 
-        auto relationStart = Clock::now();
+        for (int round = 0; round < 5 && !solved; ++round) {
+            int targetRelations = requiredRelations + round * 20;
+            cout << "Collection round " << (round + 1)
+                 << ": target " << targetRelations << " relations.\n";
 
-        collectRelationsParallel(
-            p, alpha, base, requiredRelations,
-            relations, maxAttempts, threadCount
-        );
+            auto collectRoundStart = Clock::now();
+            collectRelationsParallel(
+                p, alpha, base, targetRelations,
+                relations, maxAttempts, threadCount
+            );
+            relationAccumulated += chrono::duration<double>(Clock::now() - collectRoundStart).count();
 
-        auto relationEnd = Clock::now();
+            cout << "Collected " << relations.size() << " relations.\n";
 
-        cout << "Collected " << relations.size()
-             << " relations.\n";
+            if ((int)relations.size() < (int)base.size())
+                continue;
 
-        if ((int)relations.size() < (int)base.size()) {
-            cout << "Insufficient relations collected.\n";
-            return 1;
-        }
+            cout << "Solving relation system...\n";
+            auto solveRoundStart = Clock::now();
+            bool solveResult = solveRelationSystem(relations, (int)base.size(), p - 1, logs);
+            solvingAccumulated += chrono::duration<double>(Clock::now() - solveRoundStart).count();
+            if (!solveResult)
+                continue;
 
-        cout << "Solving relation system...\n";
+            solved = true;
 
-        auto solvingStart = Clock::now();
-
-        vector<cpp_int> logs;
-
-        if (!solveRelationSystem(
-                relations, (int)base.size(), p - 1, logs)) {
-            cout << "Unable to solve relation system.\n";
-            return 1;
-        }
-
-        bool relationVerification = true;
-
-        for (size_t i = 0; i < base.size(); ++i) {
-            if (modPow(alpha, logs[i], p) != base[i]) {
-                relationVerification = false;
-                break;
+            for (size_t i = 0; i < base.size(); ++i) {
+                if (modPow(alpha, logs[i], p) != base[i]) {
+                    solved = false;
+                    break;
+                }
             }
         }
 
-        if (!relationVerification) {
-            cout << "Relation logarithms failed verification.\n";
+        auto relationEnd = Clock::now();
+        double relationTimeMeasured = relationAccumulated;
+        double solvingTimeMeasured = solvingAccumulated;
+
+        if (!solved) {
+            cout << "Unable to obtain a verified solution after multiple collection rounds.\n";
             return 1;
         }
-
-        auto solvingEnd = Clock::now();
 
         cout << "\nFactor base logarithms:\n";
 
@@ -617,11 +624,8 @@ int main() {
 
         auto totalEnd = Clock::now();
 
-        auto relationTime =
-            chrono::duration<double>(relationEnd - relationStart).count();
-
-        auto solvingTime =
-            chrono::duration<double>(solvingEnd - solvingStart).count();
+        auto relationTime = relationTimeMeasured;
+        auto solvingTime = solvingTimeMeasured;
 
         auto targetTime =
             chrono::duration<double>(targetEnd - targetStart).count();

@@ -576,58 +576,60 @@ int main() {
     cout << "\n";
 
     int variables = (int)factorBase.size();
-    int requiredRelations = variables + 20;
     long long maxAttempts = 2000000;
+    int requiredRelations = variables + 20;
+    vector<Relation> relations;
+    vector<long long> logarithms;
+    bool solved = false;
+    double relationTime = 0.0;
+    double solveTime = 0.0;
 
-    cout << "\nCollecting relations...\n";
+    cout << "\nCollecting relations and solving system...\n";
 
-    auto relationStart = chrono::high_resolution_clock::now();
+    for (int round = 0; round < 5 && !solved; round++) {
+        auto relationStart = chrono::high_resolution_clock::now();
 
-    vector<Relation> relations = collectRelations(
-        p,
-        alpha,
-        n,
-        factorBase,
-        requiredRelations,
-        maxAttempts
-    );
+        relations = collectRelations(
+            p,
+            alpha,
+            n,
+            factorBase,
+            requiredRelations,
+            maxAttempts
+        );
 
-    auto relationEnd = chrono::high_resolution_clock::now();
+        auto relationEnd = chrono::high_resolution_clock::now();
+        relationTime += chrono::duration<double>(
+            relationEnd - relationStart
+        ).count();
 
-    double relationTime = chrono::duration<double>(
-        relationEnd - relationStart
-    ).count();
+        cout << "Collected " << relations.size()
+             << " relations (attempt " << round + 1 << ").\n";
 
-    cout << "Collected " << relations.size()
-         << " relations.\n";
+        if ((int)relations.size() < variables) {
+            requiredRelations += variables;
+            continue;
+        }
 
-    if ((int)relations.size() < variables) {
-        cout << "Error: not enough relations collected.\n";
-        return 1;
+        auto solveStart = chrono::high_resolution_clock::now();
+        solved = solveRelationSystem(
+            relations,
+            variables,
+            n,
+            logarithms
+        );
+        auto solveEnd = chrono::high_resolution_clock::now();
+        solveTime += chrono::duration<double>(
+            solveEnd - solveStart
+        ).count();
+
+        if (!solved)
+            requiredRelations += variables + 20;
     }
 
-    vector<long long> logarithms;
-
-    cout << "Solving relation system...\n";
-
-    auto solveStart = chrono::high_resolution_clock::now();
-
-    bool solved = solveRelationSystem(
-        relations,
-        variables,
-        n,
-        logarithms
-    );
-
-    auto solveEnd = chrono::high_resolution_clock::now();
-
-    double solveTime = chrono::duration<double>(
-        solveEnd - solveStart
-    ).count();
-
     if (!solved) {
-        cout << "Error: relation system could not be solved.\n";
-        cout << "Try a different B or collect more relations.\n";
+        cout << "Error: relation system could not be solved after retries.\n";
+        cout << "Try a different factor base bound B.\n";
         return 1;
     }
 

@@ -1,8 +1,10 @@
 .DS_Store
 .vscode/
 build/
+.venv/
 *.o
 *.out
+benchmark_logs/
 benchmark_results/
 index_calculus
 index_calculus_parallel
